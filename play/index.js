@@ -218,6 +218,32 @@ play("Carousel", module)
       h, containerWidth, [h(Carousel, { props: { spacePadding: 100, perPage: 1} }, generateSlideImages(h))]
       )
   )
+  .add("Transition end", {
+    template: `<div style="width: 100%; display: flex; justify-content: center; margin-top: 40px;">
+        <carousel
+          style="width: 500px;"
+          @transitionEnd="handleTransitionEnd"
+        >
+          <slide v-for="slide in slides" :key="slide.src">
+            <img style="width: 100%;" :src= slide />
+          </slide>
+        </carousel>
+      </div>`,
+    data() {
+      return {
+        slides: images
+      }
+    },
+    components: {
+      Carousel,
+      Slide
+    },
+    methods: {
+      handleTransitionEnd() {
+        alert('transition end!')
+      }
+    }
+  })
   .add("Custom width", {
     components: { Carousel, Slide },
     render: h => {
@@ -243,4 +269,28 @@ play("Carousel", module)
       )
     }
   })
-
+  .add("Emit selected element dataset", {
+    template:
+      `<div style="width: 100%; display: flex; justify-content: center; margin-top: 40px;">
+        <carousel style="width: 500px;" :navigateTo="newSlide" :scrollPerPage=false>
+          <slide v-for="(slide, index) in slides" :key="slide.src" :data-index="index" v-on:slideClick="onSlideClick">
+            <img style="width: 100%;" :src= slide />
+          </slide>
+        </carousel>
+      </div>`,
+    components: {
+      Carousel,
+      Slide
+    },
+    data(){
+      return {
+        newSlide: 0,
+        slides: images
+      }
+    },
+    methods: {
+      onSlideClick (data) {
+        this.$log(data)
+      }
+    }
+  })

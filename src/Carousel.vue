@@ -1,44 +1,52 @@
 <template>
-  <section class="VueCarousel" >
-    <div class="VueCarousel-wrapper" ref="VueCarousel-wrapper">
-      <div
-        ref="VueCarousel-inner"
+  <section class="VueCarousel">
+    <div class="VueCarousel-wrapper"
+      ref="VueCarousel-wrapper">
+      <div ref="VueCarousel-inner"
         class="VueCarousel-inner"
         role="listbox"
-        v-bind:style="`
-          transform: translate3d(${currentOffset}px, 0, 0);
-          transition: ${!dragging ? transitionStyle : 'none'};
-          ms-flex-preferred-size: ${slideWidth}px;
-          webkit-flex-basis: ${slideWidth}px;
-          flex-basis: ${slideWidth}px;
-          visibility: ${slideWidth ? 'visible' : 'hidden'};
-          padding-left: ${padding}px;
-          padding-right: ${padding}px;
-        `"
-      >
+        :style="{
+          'transform': `translate3d(${currentOffset}px, 0, 0)`,
+          'transition': dragging ? 'none' : transitionStyle,
+          'ms-flex-preferred-size': `${slideWidth}px`,
+          'webkit-flex-basis': `${slideWidth}px`,
+          'flex-basis': `${slideWidth}px`,
+          'visibility': slideWidth ? 'visible' : 'hidden',
+          'padding-left': `${padding}px`,
+          'padding-right': `${padding}px`
+        }">
         <slot></slot>
       </div>
     </div>
-    <pagination
-      v-if="paginationEnabled && pageCount > 0"
-      @paginationclick="goToPage($event, 'pagination')"
-    ></pagination>
-    <navigation
-      v-if="navigationEnabled"
+    <pagination v-if="paginationEnabled && pageCount > 0"
+      @paginationclick="goToPage($event, 'pagination')"></pagination>
+    <navigation v-if="navigationEnabled"
       :clickTargetSize="navigationClickTargetSize"
       :nextLabel="navigationNextLabel"
       :prevLabel="navigationPrevLabel"
-      @navigationclick="handleNavigation"
-    ></navigation>
+      @navigationclick="handleNavigation"></navigation>
   </section>
 </template>
-
 <script>
 import autoplay from "./mixins/autoplay";
 import debounce from "./utils/debounce";
 import Navigation from "./Navigation.vue";
 import Pagination from "./Pagination.vue";
 import Slide from "./Slide.vue";
+
+const transitionEndNames = {
+  onwebkittransitionend: "webkitTransitionEnd",
+  onmoztransitionend: "transitionend",
+  onotransitionend: "oTransitionEnd otransitionend",
+  ontransitionend: "transitionend"
+};
+const getTransitionEnd = () => {
+  for (let name in transitionEndNames) {
+    if (name in window) {
+      return transitionEndNames[name];
+    }
+  }
+};
 
 export default {
   name: "carousel",
@@ -63,10 +71,17 @@ export default {
       isTouch: typeof window !== "undefined" && "ontouchstart" in window,
       offset: 0,
       refreshRate: 16,
-      slideCount: 0
+      slideCount: 0,
+      transitionend: "transitionend"
     };
   },
   mixins: [autoplay],
+  // use `provide` to avoid `Slide` being nested with other components
+  provide() {
+    return {
+      carousel: this
+    };
+  },
   props: {
     /**
      * Slide transition easing
@@ -92,8 +107,8 @@ export default {
       default: 8
     },
     /*
-       * Flag to toggle mouse dragging
-       */
+     * Flag to toggle mouse dragging
+     */
     mouseDrag: {
       type: Boolean,
       default: true
@@ -212,9 +227,9 @@ export default {
       type: Number,
       default: 0
     },
-    /*
-       *  Stage padding option adds left and right padding style (in pixels) onto VueCarousel-inner.
-       */
+    /**
+     *  Space padding option adds left and right padding style (in pixels) onto VueCarousel-inner.
+     */
     spacePadding: {
       type: Number,
       default: 0
@@ -521,8 +536,6 @@ export default {
         return;
       }
 
-      // we are good to prevent the move and handle the translation
-      e.preventDefault();
       e.stopImmediatePropagation();
 
       this.dragOffset = newOffsetX;
@@ -583,40 +596,49 @@ export default {
         this.currentPage = setPage >= 0 ? setPage : 0;
         this.offset = Math.max(0, Math.min(this.offset, this.maxOffset));
       }
+    },
+    handleTransitionEnd() {
+      this.$emit("transitionEnd");
     }
   },
   mounted() {
-    if (!this.$isServer) {
-      window.addEventListener(
-        "resize",
-        debounce(this.onResize, this.refreshRate)
-      );
+    window.addEventListener(
+      "resize",
+      debounce(this.onResize, this.refreshRate)
+    );
 
-      // setup the start event only if touch device or mousedrag activated
-      if (this.isTouch || this.mouseDrag) {
-        this.$refs["VueCarousel-wrapper"].addEventListener(
-          this.isTouch ? "touchstart" : "mousedown",
-          this.onStart
-        );
-      }
-    }
-
-    this.attachMutationObserver();
-    this.computeCarouselWidth();
-  },
-  beforeDestroy() {
-    if (!this.$isServer) {
-      this.detachMutationObserver();
-      window.removeEventListener("resize", this.getBrowserWidth);
-      this.$refs["VueCarousel-wrapper"].removeEventListener(
+    // setup the start event only if touch device or mousedrag activated
+    if (this.isTouch || this.mouseDrag) {
+      this.$refs["VueCarousel-wrapper"].addEventListener(
         this.isTouch ? "touchstart" : "mousedown",
         this.onStart
       );
     }
+
+    this.attachMutationObserver();
+    this.computeCarouselWidth();
+
+    this.transitionend = getTransitionEnd();
+    this.$refs["VueCarousel-inner"].addEventListener(
+      this.transitionend,
+      this.handleTransitionEnd
+    );
+  },
+  beforeDestroy() {
+    this.detachMutationObserver();
+    window.removeEventListener("resize", this.getBrowserWidth);
+    this.$refs["VueCarousel-inner"].removeEventListener(
+      this.transitionend,
+      this.handleTransitionEnd
+    );
+
+    this.$refs["VueCarousel-wrapper"].removeEventListener(
+      this.isTouch ? "touchstart" : "mousedown",
+      this.onStart
+    );
   }
 };
 </script>
-
 <style>
 .VueCarousel {
   position: relative;
